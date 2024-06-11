@@ -38,13 +38,18 @@ void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 //static uint8_t mydata[] = "Hello, world!";
 //uint8_t mydata[8];
 static osjob_t sendjob;
-const uint32_t SERIAL_SPEED{9600};  ///< Set the baud rate for Serial I/O
+const uint16_t SERIAL_SPEED{9600};  ///< Set the baud rate for Serial I/O
 BME680_Class BME680;  ///< Create an instance of the BME680 class
-//int32_t  temp=0, humidity=0, pressure=0, gas=0;  // BME readings
+int32_t  temp=0, humidity=0, pressure=0, gas=0;  // BME readings
+//int32_t * temp, humidity, pressure, gas;  // BME readings
+long* tempP;
+long* humidityP;
+long* pressureP;
+long* gasP;
 
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
-const unsigned TX_INTERVAL = 60;
+const uint8_t PROGMEM TX_INTERVAL = 60;
 
 // Pin mapping
 const lmic_pinmap lmic_pins = { //VIN = 3.3V, GND = GND, EN = ? G0 = 4, SCK = 13, MISO = 12, MOSI = 11, CS = 10, RST = 2, G1 = 5, G2 = 7
@@ -114,15 +119,15 @@ void do_send(osjob_t* j){
     // Check if there is not a current TX/RX job running
   //int32_t temp =  2147483640;
   //int32_t  humidity=0, pressure=0, gas=0;
- int32_t  temp=0, humidity=0, pressure=0, gas=0;  // BME readings
+  int32_t  temp, humidity, pressure, gas;  // BME readings
     /*if (LMIC.opmode & OP_TXRXPEND) {
         Serial.println(F("OP_TXRXPEND, not sending"));
     } else {*/
   //BME680.triggerMeasurement();
   //BME680.getSensorData(temp, humidity, pressure, gas, false);  // Get readings
-  BME680.getSensorData(temp, humidity, pressure, gas);
+  BME680.getSensorData(&temp, &humidity, &pressure, &gas);
   //int port = 10;
-  delay(20);
+  delay(100);
   
   /*temp=0;
   humidity=0;
@@ -130,19 +135,41 @@ void do_send(osjob_t* j){
    gas=0;*/
   
   static uint8_t mydata[8];
-  int wert=round(temp/10.*1);
+  // int wert=temp/10;
+  // //Serial.println(wert);
+  // mydata[0] = wert >> 8;
+  // mydata[1] = wert & 0xFF;
+  // wert=humidity/100;
+  // mydata[2] = wert >> 8;
+  // mydata[3] = wert & 0xFF;
+  // wert=pressure/10;
+  // mydata[4] = wert >> 8;
+  // mydata[5] = wert & 0xFF;
+  // wert=gas/100;
+  // mydata[6] = wert >> 8;
+  // mydata[7] = wert & 0xFF;
+  //int wert=temp/10;
   //Serial.println(wert);
-  mydata[0] = wert >> 8;
-  mydata[1] = wert & 0xFF;
-  wert=round(humidity/100.*1);
-  mydata[2] = wert >> 8;
-  mydata[3] = wert & 0xFF;
-  wert=round(pressure/10.*1);
-  mydata[4] = wert >> 8;
-  mydata[5] = wert & 0xFF;
-  wert=round(gas/100.*10);
-  mydata[6] = wert >> 8;
-  mydata[7] = wert & 0xFF;
+  
+  mydata[0] = temp[3];
+  mydata[1] = temp[2];
+  mydata[2] = humidity[3];
+  mydata[3] = humidity[2];
+  mydata[4] = pressure[3];
+  mydata[5] = pressure[2];
+  mydata[6] = gas[3];
+  mydata[7] = gas[2];
+  // mydata[0] = *temp >> 8;
+  // mydata[1] = *temp & 0xFF;
+  // //wert=humidity/100;
+  // mydata[2] = *humidity >> 8;
+  // mydata[3] = *humidity & 0xFF;
+  // //wert=pressure/10;
+  // mydata[4] = *pressure >> 8;
+  // mydata[5] = *pressure & 0xFF;
+  // //wert=gas/100;
+  // mydata[6] = *gas >> 8;
+  // mydata[7] = *gas & 0xFF;
   // Check if there is not a current TX/RX job running
   if (LMIC.opmode & OP_TXRXPEND) {
     Serial.println(F("OP_TXRXPEND, not sending"));
@@ -163,20 +190,18 @@ void do_send(osjob_t* j){
 void setup() {
   Serial.begin(SERIAL_SPEED);  // Start serial port at Baud rate
   Serial.println(F("Starting"));
-
-  BME680.begin(I2C_STANDARD_MODE);
+  gasP=&gas;
+  tempP=&temp;
+  pressureP = &pressure;
+  humidity? = &humidity;
+  BME680.begin(I2C_FAST_MODE);
   BME680.setOversampling(TemperatureSensor, Oversample1);  // Use enumerated type values
   BME680.setOversampling(HumiditySensor, Oversample1);     // Use enumerated type values
   BME680.setOversampling(PressureSensor, Oversample1);     // Use enumerated type values
-  BME680.setIIRFilter(IIR4);  // Use enumerated type values
+  BME680.setIIRFilter(IIR2);  // Use enumerated type values
   BME680.setGas(320, 150);  // 320�c for 150 milliseconds
 
-  #ifdef VCC_ENABLE
-  // For Pinoccio Scout boards
-  pinMode(VCC_ENABLE, OUTPUT);
-  digitalWrite(VCC_ENABLE, HIGH);
-  delay(1000);
-  #endif
+  
   //BME680.triggerMeasurement();
   // LMIC init
   os_init();
