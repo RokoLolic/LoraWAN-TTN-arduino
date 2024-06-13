@@ -40,12 +40,12 @@ void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 static osjob_t sendjob;
 const uint16_t SERIAL_SPEED{9600};  ///< Set the baud rate for Serial I/O
 BME680_Class BME680;  ///< Create an instance of the BME680 class
-int32_t  temp=0, humidity=0, pressure=0, gas=0;  // BME readings
-//int32_t * temp, humidity, pressure, gas;  // BME readings
-long* tempP;
-long* humidityP;
-long* pressureP;
-long* gasP;
+// int32_t  temp=0, humidity=0, pressure=0, gas=0;  // BME readings
+// int32_t * temp, humidity, pressure, gas;  // BME readings
+// long* tempP;
+// long* humidityP;
+// long* pressureP;
+// long* gasP;
 
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
@@ -124,17 +124,50 @@ void do_send(osjob_t* j){
         Serial.println(F("OP_TXRXPEND, not sending"));
     } else {*/
   //BME680.triggerMeasurement();
-  //BME680.getSensorData(temp, humidity, pressure, gas, false);  // Get readings
-  BME680.getSensorData(&temp, &humidity, &pressure, &gas);
+  BME680.getSensorData(temp, humidity, pressure, gas);  // Get readings
+  //BME680.getSensorData(tempP, humidityP, pressureP, gasP);
   //int port = 10;
-  delay(100);
+  delay(1000);
   
   /*temp=0;
   humidity=0;
    pressure=0;
    gas=0;*/
   
-  static uint8_t mydata[8];
+  //static uint8_t mydata[8];
+
+  static uint8_t mydata[4];
+
+  // //uint8_t wert=temp/100;
+  // mydata[0] = (uint8_t)temp/100;
+  // //wert=gas/1000;
+  // mydata[1] = (uint8_t)gas/1000;
+  // //wert=humidity/1000;
+  // mydata[2] = (uint8_t)humidity/1000;
+  // //wert=1013 - pressure/100;
+  // mydata[3] = (uint8_t)(1013-pressure/100);
+  uint8_t wert=temp/100;
+  mydata[0] = wert;
+  wert=gas/1000;
+  mydata[1] = wert;
+  wert=humidity/1000;
+  mydata[2] = wert;
+  wert=(1013 - pressure/100);
+  mydata[3] = wert;
+
+  // uint8_t *p = (uint8_t *)&temp;
+  // mydata[1] = p[0];
+  // mydata[0] = p[1];
+  // p = (uint8_t *)&humidity;
+  // mydata[3] = p[0];
+  // mydata[2] = p[1];
+  // p = (uint8_t *)&pressure;
+  // mydata[5] = p[0];
+  // mydata[4] = p[1];
+  // p = (uint8_t *)&gas;
+  // mydata[7] = p[0];
+  // mydata[6] = p[1];
+  
   // int wert=temp/10;
   // //Serial.println(wert);
   // mydata[0] = wert >> 8;
@@ -148,17 +181,19 @@ void do_send(osjob_t* j){
   // wert=gas/100;
   // mydata[6] = wert >> 8;
   // mydata[7] = wert & 0xFF;
-  //int wert=temp/10;
-  //Serial.println(wert);
+
+  // int wert=temp/10;
+  // Serial.println(wert);
   
-  mydata[0] = temp[3];
-  mydata[1] = temp[2];
-  mydata[2] = humidity[3];
-  mydata[3] = humidity[2];
-  mydata[4] = pressure[3];
-  mydata[5] = pressure[2];
-  mydata[6] = gas[3];
-  mydata[7] = gas[2];
+  // mydata[0] = temp[3];
+  // mydata[1] = temp[2];
+  // mydata[2] = humidity[3];
+  // mydata[3] = humidity[2];
+  // mydata[4] = pressure[3];
+  // mydata[5] = pressure[2];
+  // mydata[6] = gas[3];
+  // mydata[7] = gas[2];
+
   // mydata[0] = *temp >> 8;
   // mydata[1] = *temp & 0xFF;
   // //wert=humidity/100;
@@ -190,11 +225,11 @@ void do_send(osjob_t* j){
 void setup() {
   Serial.begin(SERIAL_SPEED);  // Start serial port at Baud rate
   Serial.println(F("Starting"));
-  gasP=&gas;
-  tempP=&temp;
-  pressureP = &pressure;
-  humidity? = &humidity;
-  BME680.begin(I2C_FAST_MODE);
+  // gasP=&gas;
+  // tempP=&temp;
+  // pressureP = &pressure;
+  // humidityP = &humidity;
+  BME680.begin(I2C_STANDARD_MODE);
   BME680.setOversampling(TemperatureSensor, Oversample1);  // Use enumerated type values
   BME680.setOversampling(HumiditySensor, Oversample1);     // Use enumerated type values
   BME680.setOversampling(PressureSensor, Oversample1);     // Use enumerated type values
