@@ -60,6 +60,8 @@ static const u1_t PROGMEM APPKEY[16] = { 0xA1, 0x27, 0x12, 0xF7, 0xBB, 0xCD, 0x0
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
 uint8_t mydata[4];
+int32_t  temp, humidity, pressure, gas;
+
 static osjob_t sendjob;
 BME680_Class BME680;  ///< Create an instance of the BME680 class
 
@@ -77,71 +79,71 @@ const lmic_pinmap lmic_pins = {
 };
 
 void onEvent (ev_t ev) {
-    Serial.print(os_getTime());
-    Serial.print(": ");
+    // Serial.print(os_getTime());
+    // Serial.print(": ");
     switch(ev) {
-        case EV_SCAN_TIMEOUT:
-            Serial.println(F("EV_SCAN_TIMEOUT"));
-            break;
-        case EV_BEACON_FOUND:
-            Serial.println(F("EV_BEACON_FOUND"));
-            break;
-        case EV_BEACON_MISSED:
-            Serial.println(F("EV_BEACON_MISSED"));
-            break;
-        case EV_BEACON_TRACKED:
-            Serial.println(F("EV_BEACON_TRACKED"));
-            break;
-        case EV_JOINING:
-            Serial.println(F("EV_JOINING"));
-            break;
+        // case EV_SCAN_TIMEOUT:
+        //     Serial.println(F("EV_SCAN_TIMEOUT"));
+        //     break;
+        // case EV_BEACON_FOUND:
+        //     Serial.println(F("EV_BEACON_FOUND"));
+        //     break;
+        // case EV_BEACON_MISSED:
+        //     Serial.println(F("EV_BEACON_MISSED"));
+        //     break;
+        // case EV_BEACON_TRACKED:
+        //     Serial.println(F("EV_BEACON_TRACKED"));
+        //     break;
+        // case EV_JOINING:
+        //     Serial.println(F("EV_JOINING"));
+        //     break;
         case EV_JOINED:
-            Serial.println(F("EV_JOINED"));
+            //Serial.println(F("EV_JOINED"));
 
             // Disable link check validation (automatically enabled
             // during join, but not supported by TTN at this time).
             LMIC_setLinkCheckMode(0);
             break;
-        case EV_RFU1:
-            Serial.println(F("EV_RFU1"));
-            break;
-        case EV_JOIN_FAILED:
-            Serial.println(F("EV_JOIN_FAILED"));
-            break;
-        case EV_REJOIN_FAILED:
-            Serial.println(F("EV_REJOIN_FAILED"));
-            break;
-            break;
+        // case EV_RFU1:
+        //     Serial.println(F("EV_RFU1"));
+        //     break;
+        // case EV_JOIN_FAILED:
+        //     Serial.println(F("EV_JOIN_FAILED"));
+        //     break;
+        // case EV_REJOIN_FAILED:
+        //     Serial.println(F("EV_REJOIN_FAILED"));
+        //     break;
+        //     break;
         case EV_TXCOMPLETE:
-            Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
-            if (LMIC.txrxFlags & TXRX_ACK)
-              Serial.println(F("Received ack"));
-            if (LMIC.dataLen) {
-              Serial.println(F("Received "));
-              Serial.println(LMIC.dataLen);
-              Serial.println(F(" bytes of payload"));
-            }
+            // Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
+            // if (LMIC.txrxFlags & TXRX_ACK)
+            //   Serial.println(F("Received ack"));
+            // if (LMIC.dataLen) {
+            //   Serial.println(F("Received "));
+            //   Serial.println(LMIC.dataLen);
+            //   Serial.println(F(" bytes of payload"));
+            // }
             // Schedule next transmission
             os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
             break;
-        case EV_LOST_TSYNC:
-            Serial.println(F("EV_LOST_TSYNC"));
-            break;
-        case EV_RESET:
-            Serial.println(F("EV_RESET"));
-            break;
-        case EV_RXCOMPLETE:
-            // data received in ping slot
-            Serial.println(F("EV_RXCOMPLETE"));
-            break;
-        case EV_LINK_DEAD:
-            Serial.println(F("EV_LINK_DEAD"));
-            break;
-        case EV_LINK_ALIVE:
-            Serial.println(F("EV_LINK_ALIVE"));
-            break;
+        // case EV_LOST_TSYNC:
+        //     Serial.println(F("EV_LOST_TSYNC"));
+        //     break;
+        // case EV_RESET:
+        //     Serial.println(F("EV_RESET"));
+        //     break;
+        // case EV_RXCOMPLETE:
+        //     // data received in ping slot
+        //     Serial.println(F("EV_RXCOMPLETE"));
+        //     break;
+        // case EV_LINK_DEAD:
+        //     Serial.println(F("EV_LINK_DEAD"));
+        //     break;
+        // case EV_LINK_ALIVE:
+        //     Serial.println(F("EV_LINK_ALIVE"));
+        //     break;
          default:
-            Serial.println(F("Unknown event"));
+            //Serial.println(F("Unknown event"));
             break;
     }
 }
@@ -149,14 +151,13 @@ void onEvent (ev_t ev) {
 void do_send(osjob_t* j){
     // Check if there is not a current TX/RX job running
     if (LMIC.opmode & OP_TXRXPEND) {
-        Serial.println(F("OP_TXRXPEND, not sending"));
+        //Serial.println(F("OP_TXRXPEND, not sending"));
     } else {
         // Prepare upstream data transmission at the next possible time.
         //unsigned char payload;
         //readValues(&payload);
-        int32_t  temp, humidity, pressure, gas;
-          BME680.getSensorData(temp, humidity, pressure, gas);  // Get readings
-          delay(1000);
+          BME680.getSensorData(temp, humidity, pressure, gas, true);  // Get readings
+          //delay(1000);
         //static uint8_t mydata[4];
           uint8_t wert=temp/100;
           mydata[0] = wert;
@@ -164,17 +165,18 @@ void do_send(osjob_t* j){
           mydata[1] = wert;
           wert=humidity/1000;
           mydata[2] = wert;
-          wert=(1013 - pressure/100);
+          //wert=(1013 - pressure/100);
+          wert = pressure/100 - 870;
           mydata[3] = wert;
 
-        for(int i=0; i<4; i++){
+        /*for(int i=0; i<4; i++){
             Serial.println(mydata[i]);
 
         }
-        Serial.println("");
+        Serial.println("");*/
 
         LMIC_setTxData2(1, mydata, 4, 0);
-        Serial.println(F("Packet queued"));
+        //Serial.println(F("Packet queued"));
     }
     // Next TX is scheduled after TX_COMPLETE event.
 }
@@ -182,8 +184,8 @@ void do_send(osjob_t* j){
 
 void setup() {
     Serial.begin(9600);
-    delay(10000);
-    Serial.println(F("Starting"));
+    //delay(10000);
+    //Serial.println(F("Starting"));
 
     BME680.begin(I2C_STANDARD_MODE);
     BME680.setOversampling(TemperatureSensor, Oversample1);  // Use enumerated type values
@@ -204,8 +206,8 @@ void setup() {
     do_send(&sendjob);
 
     // Show on device LED that we are ready
-    pinMode(13, OUTPUT);
-    digitalWrite(13, HIGH);
+    //pinMode(13, OUTPUT);
+    //digitalWrite(13, HIGH);
 }
 
 void loop() {
