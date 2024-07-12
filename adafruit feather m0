@@ -46,170 +46,115 @@
 // first. When copying an EUI from ttnctl output, this means to reverse
 // the bytes. For TTN issued EUIs the last bytes should be 0xD5, 0xB3,
 // 0x70.
-static const u1_t PROGMEM APPEUI[8]={ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
+static const u1_t PROGMEM APPEUI[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+void os_getArtEui(u1_t* buf) {
+  memcpy_P(buf, APPEUI, 8);
+}
 
 // This should also be in little endian format, see above.
-static const u1_t PROGMEM DEVEUI[8]={ 0x41, 0x73, 0x06, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
-void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
+static const u1_t PROGMEM DEVEUI[8] = { 0x41, 0x73, 0x06, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
+void os_getDevEui(u1_t* buf) {
+  memcpy_P(buf, DEVEUI, 8);
+}
 
 // This key should be in big endian format (or, since it is not really a
 // number but a block of memory, endianness does not really apply). In
 // practice, a key taken from ttnctl can be copied as-is.
 static const u1_t PROGMEM APPKEY[16] = { 0xA1, 0x27, 0x12, 0xF7, 0xBB, 0xCD, 0x06, 0x20, 0x1C, 0xF9, 0x6F, 0x6B, 0xD8, 0x47, 0xBE, 0xA8 };
-void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
+void os_getDevKey(u1_t* buf) {
+  memcpy_P(buf, APPKEY, 16);
+}
 
-uint8_t mydata[4];
-int32_t  temp, humidity, pressure, gas;
+uint8_t mydata[4];                      // An array of global variables that will store measurement data that will be sent
+int32_t temp, humidity, pressure, gas;  // 4 32 bit variables that tempoarily store measurement data,
+//since measurement data can only be stored in 32 bit values
 
-static osjob_t sendjob;
-BME680_Class BME680;  ///< Create an instance of the BME680 class
+static osjob_t sendjob;  // data structure in oslmic.h, creates jobs that do a function in a deadline and have a pointer to next osjob_t instance
+BME680_Class BME680;     ///< Create an instance of the BME680 class, it stores sensor settings and gives functions for measuring
 
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
-const unsigned TX_INTERVAL = 60;
+const unsigned TX_INTERVAL = 60;  // how often should it send data in seconds
 
 // Pin mapping
 
 const lmic_pinmap lmic_pins = {
-    .nss = 8,  
-    .rxtx = LMIC_UNUSED_PIN,
-    .rst = LMIC_UNUSED_PIN,
-    .dio = {3,6,LMIC_UNUSED_PIN},
+  // deciding what pins to use for radio modules
+  .nss = 8,
+  .rxtx = LMIC_UNUSED_PIN,  // this one isn't used
+  .rst = LMIC_UNUSED_PIN,   // this one also isn't used
+  .dio = { 3, 6, LMIC_UNUSED_PIN },
 };
 
-void onEvent (ev_t ev) {
-    // Serial.print(os_getTime());
-    // Serial.print(": ");
-    switch(ev) {
-        // case EV_SCAN_TIMEOUT:
-        //     Serial.println(F("EV_SCAN_TIMEOUT"));
-        //     break;
-        // case EV_BEACON_FOUND:
-        //     Serial.println(F("EV_BEACON_FOUND"));
-        //     break;
-        // case EV_BEACON_MISSED:
-        //     Serial.println(F("EV_BEACON_MISSED"));
-        //     break;
-        // case EV_BEACON_TRACKED:
-        //     Serial.println(F("EV_BEACON_TRACKED"));
-        //     break;
-        // case EV_JOINING:
-        //     Serial.println(F("EV_JOINING"));
-        //     break;
-        case EV_JOINED:
-            //Serial.println(F("EV_JOINED"));
+void onEvent(ev_t ev) {          // event handler, when an event happens it returns a number
+  switch (ev) {                  // events are enumerated, there are various events for troubleshooting, they are removed to save space
+    case EV_JOINED:              // enumeration if device joins the web
+      LMIC_setLinkCheckMode(0);  // Turns off link check, so data isn't wasted on checking the connectivity
+      break;
+    case EV_TXCOMPLETE:  // enumeration if transmition is succesufull
 
-            // Disable link check validation (automatically enabled
-            // during join, but not supported by TTN at this time).
-            LMIC_setLinkCheckMode(0);
-            break;
-        // case EV_RFU1:
-        //     Serial.println(F("EV_RFU1"));
-        //     break;
-        // case EV_JOIN_FAILED:
-        //     Serial.println(F("EV_JOIN_FAILED"));
-        //     break;
-        // case EV_REJOIN_FAILED:
-        //     Serial.println(F("EV_REJOIN_FAILED"));
-        //     break;
-        //     break;
-        case EV_TXCOMPLETE:
-            // Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
-            // if (LMIC.txrxFlags & TXRX_ACK)
-            //   Serial.println(F("Received ack"));
-            // if (LMIC.dataLen) {
-            //   Serial.println(F("Received "));
-            //   Serial.println(LMIC.dataLen);
-            //   Serial.println(F(" bytes of payload"));
-            // }
-            // Schedule next transmission
-            os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
-            break;
-        // case EV_LOST_TSYNC:
-        //     Serial.println(F("EV_LOST_TSYNC"));
-        //     break;
-        // case EV_RESET:
-        //     Serial.println(F("EV_RESET"));
-        //     break;
-        // case EV_RXCOMPLETE:
-        //     // data received in ping slot
-        //     Serial.println(F("EV_RXCOMPLETE"));
-        //     break;
-        // case EV_LINK_DEAD:
-        //     Serial.println(F("EV_LINK_DEAD"));
-        //     break;
-        // case EV_LINK_ALIVE:
-        //     Serial.println(F("EV_LINK_ALIVE"));
-        //     break;
-         default:
-            //Serial.println(F("Unknown event"));
-            break;
-    }
+      // Schedule next transmission
+      // Uses the adress of formerly declared sendjob and it sets that the function "do_send" will be done in TX_INTERVAL seconds
+      os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL), do_send);
+      break;
+    default:
+      // If event is neither one of these 2, do nothing
+      break;
+  }
 }
 
-void do_send(osjob_t* j){
-    // Check if there is not a current TX/RX job running
-    if (LMIC.opmode & OP_TXRXPEND) {
-        //Serial.println(F("OP_TXRXPEND, not sending"));
-    } else {
-        // Prepare upstream data transmission at the next possible time.
-        //unsigned char payload;
-        //readValues(&payload);
-          BME680.getSensorData(temp, humidity, pressure, gas, true);  // Get readings
-          //delay(1000);
-        //static uint8_t mydata[4];
-          uint8_t wert=temp/100;
-          mydata[0] = wert;
-          wert=gas/1000;
-          mydata[1] = wert;
-          wert=humidity/1000;
-          mydata[2] = wert;
-          //wert=(1013 - pressure/100);
-          wert = pressure/100 - 870;
-          mydata[3] = wert;
+void do_send(osjob_t* j) {
+  // Check if there is not a current TX/RX job running
+  if (LMIC.opmode & OP_TXRXPEND) {
+  } else {
+    // Prepare upstream data transmission at the next possible time.
+    BME680.getSensorData(temp, humidity, pressure, gas, true);  // Get readings, it only does readings in integer 32 bit format
+    // wert is a unsigned integer of size 8 bits aka 1 char/byte/unsigned short integer. The value can be between 0 and 255
+    uint8_t wert = temp / 100;  // temperature is divided by 100 to make it fit under 255
+    mydata[0] = wert;           // put value in index 0
+    wert = gas / 1000;          // gas resistance in 0.1 mili Ohms
+    mydata[1] = wert;
+    wert = humidity / 1000;  // puts humidity in percentage 0% to 100%
+    mydata[2] = wert;
+    wert = pressure / 100 - 870;  // lowest measured
+    mydata[3] = wert;
 
-        /*for(int i=0; i<4; i++){
-            Serial.println(mydata[i]);
-
-        }
-        Serial.println("");*/
-
-        LMIC_setTxData2(1, mydata, 4, 0);
-        //Serial.println(F("Packet queued"));
-    }
-    // Next TX is scheduled after TX_COMPLETE event.
+    // schedule data for transmition when the channel is free
+    // it will be on port 1, the data sent will be the array "mydata"
+    // of size 4 and there will be no confirmation package returned to devices
+    LMIC_setTxData2(1, mydata, 4, 0);
+  }
+  // Next TX is scheduled after TX_COMPLETE event.
 }
 
 
 void setup() {
-    Serial.begin(9600);
-    //delay(10000);
-    //Serial.println(F("Starting"));
+  Serial.begin(9600);  // Starts serial communication, baud rate is 9600
+  // How fast should communication happen and what type of communication should be used (I2C)
+  BME680.begin(I2C_STANDARD_MODE);
+  // Setting sensors and levels of oversampling. Here the levels are lowest 1x
+  BME680.setOversampling(TemperatureSensor, Oversample1);  // Use enumerated type values
+  BME680.setOversampling(HumiditySensor, Oversample1);     // Use enumerated type values
+  BME680.setOversampling(PressureSensor, Oversample1);     // Use enumerated type values
+  // Infinite Impulse Response filter value
+  BME680.setIIRFilter(IIR4);  // Use enumerated type values
+  // Gas sensor works by heating a small surface and then measuring the gas resistance
+  // of volatile compounds in air
+  BME680.setGas(320, 150);  // 320�c for 150 milliseconds
+  // starts measuring
+  BME680.triggerMeasurement();
 
-    BME680.begin(I2C_STANDARD_MODE);
-    BME680.setOversampling(TemperatureSensor, Oversample1);  // Use enumerated type values
-    BME680.setOversampling(HumiditySensor, Oversample1);     // Use enumerated type values
-    BME680.setOversampling(PressureSensor, Oversample1);     // Use enumerated type values
-    BME680.setIIRFilter(IIR4);  // Use enumerated type values
-    BME680.setGas(320, 150);  // 320�c for 150 milliseconds
-    //Serial.println(BME680.getI2CAddress());
-    BME680.triggerMeasurement();
+  // LMIC initilization
+  os_init();
+  // Reset the MAC state. Session and pending data transfers will be discarded.
+  LMIC_reset();
+  LMIC_setClockError(MAX_CLOCK_ERROR * 1 / 100);
 
-    // LMIC init
-    os_init();
-    // Reset the MAC state. Session and pending data transfers will be discarded.
-    LMIC_reset();
-    LMIC_setClockError(MAX_CLOCK_ERROR * 1 / 100);
-
-    // Start job (sending automatically starts OTAA too)
-    do_send(&sendjob);
-
-    // Show on device LED that we are ready
-    //pinMode(13, OUTPUT);
-    //digitalWrite(13, HIGH);
+  // Start job (sending automatically starts OTAA too)
+  do_send(&sendjob);
 }
 
 void loop() {
-    os_runloop_once();
+  // This isn't
+  os_runloop_once();
 }
